@@ -45,7 +45,6 @@ if st.button("🔍 Analyze"):
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
             if is_suspicious:
                 st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
-
         st.markdown("---")
         st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE AND ALWAYS SEEK SECOND OPINIONS PREFERABLY FROM YOUR SERVICE PROVIDER")
