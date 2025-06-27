@@ -34,7 +34,7 @@ def is_known_safe(msg):
     msg_lower = msg.lower()
     return any(phrase in msg_lower for phrase in known_safe_phrases)
 
-# Logic-based traps
+# Logic: bait-style scam detector
 def is_bait_scam(message):
     message_lower = message.lower()
     custom_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
@@ -43,6 +43,7 @@ def is_bait_scam(message):
     big_number = any(char.isdigit() and len(token) > 6 for token in message.split() for char in token)
     return word_spam or dollar_count or big_number
 
+# Short suspicious message detector
 def is_short_scam(msg):
     msg_lower = msg.lower().strip()
     short_red_flags = [
@@ -69,86 +70,80 @@ def log_feedback(message, prediction, confidence, correct_label):
 # Streamlit UI
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
+st.caption("Your local AI-powered scam message detector.")
 st.caption("Made for the elderly by the youth")
 st.markdown("---")
 
 msg = st.text_area("📩 Paste the SMS or WhatsApp message below")
 
-# Session state
-if "analysis_done" not in st.session_state:
-    st.session_state.analysis_done = False
-
 if st.button("🔍 Analyze"):
     if not msg.strip():
         st.warning("Please enter a message.")
     else:
-        st.session_state.analysis_done = True
-        st.session_state.msg = msg
-
-# Show results if analyzed
-if st.session_state.analysis_done:
-    msg = st.session_state.msg
-
-    # Prediction logic
-    if is_known_safe(msg):
-        prediction = 0
-        confidence = 0.99
-    else:
-        prediction = model.predict([msg])[0]
-        confidence = model.predict_proba([msg])[0][prediction]
-
-        msg_lower = msg.lower()
-        is_suspicious = any(word in msg_lower for word in suspicious_keywords)
-        forced_scam = is_bait_scam(msg) or is_short_scam(msg)
-
-        if forced_scam:
-            prediction = 1
-            confidence = max(confidence, 0.97)
-
-    # Risk Meter
-    st.subheader("📊 Scam Risk Meter")
-    risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
-
-    if prediction == 1:
-        if confidence >= 0.9:
-            st.markdown("### 🔴 HIGH RISK: Definitely a SCAM!")
-        elif confidence >= 0.7:
-            st.markdown("### 🟠 Likely a scam. Be cautious.")
+        # First, skip AI if message is known safe
+        if is_known_safe(msg):
+            prediction = 0
+            confidence = 0.99
         else:
-            st.markdown("### ⚠️ Suspicious. Double-check manually.")
-    else:
-        if confidence >= 0.9:
-            st.markdown("### 🟢 Safe Message")
-        elif confidence >= 0.7:
-            st.markdown("### 🟡 Likely safe. Still verify.")
+            # AI prediction
+            prediction = model.predict([msg])[0]
+            confidence = model.predict_proba([msg])[0][prediction]
+
+            # Logic flags
+            msg_lower = msg.lower()
+            is_suspicious = any(word in msg_lower for word in suspicious_keywords)
+            forced_scam = is_bait_scam(msg) or is_short_scam(msg)
+
+            if forced_scam:
+                prediction = 1
+                confidence = max(confidence, 0.97)
+
+        # 📊 RISK METER
+        st.subheader("📊 Scam Risk Meter")
+        risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
+
+        if prediction == 1:
+            if confidence >= 0.9:
+                st.markdown("### 🔴 HIGH RISK: Definitely a SCAM!")
+            elif confidence >= 0.7:
+                st.markdown("### 🟠 Likely a scam. Be cautious.")
+            else:
+                st.markdown("### ⚠️ Suspicious. Double-check manually.")
         else:
-            st.markdown("### ⚠️ Unclear. Use caution.")
+            if confidence >= 0.9:
+                st.markdown("### 🟢 Safe Message")
+            elif confidence >= 0.7:
+                st.markdown("### 🟡 Likely safe. Still verify.")
+            else:
+                st.markdown("### ⚠️ Unclear. Use caution.")
 
-    st.progress(int(risk_percent))
+        st.progress(int(risk_percent))
 
-    # Final result
-    st.markdown("---")
-    if prediction == 1:
-        st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
-    else:
-        st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
-        if is_suspicious:
-            st.warning("⚠️ BUT this message mentions sensitive words. Please double-check manually.")
+        # 🧠 Final result block
+        st.markdown("---")
+        if prediction == 1:
+            st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
+        else:
+            st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
+            if 'msg_lower' in locals() and is_suspicious:
+                st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
 
-    # Feedback buttons
-    st.markdown("#### 🤖 Was this prediction correct?")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("👍 Yes", key="yes_feedback"):
-            st.success("✅ Thanks for confirming!")
-    with col2:
-        if st.button("👎 No", key="no_feedback"):
-            st.warning("⚠️ Logged. We'll learn from this.")
-            correct_label = 0 if prediction == 1 else 1
-            log_feedback(msg, prediction, confidence, correct_label)
+        # 📥 Feedback Buttons
+        st.markdown("#### 🤖 Was this prediction correct?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("👍 Yes"):
+                st.success("Thanks for confirming!")
+        with col2:
+            if st.button("👎 No"):
+                st.warning("Logged! We'll learn from this.")
+                correct_label = 0 if prediction == 1 else 1
+                log_feedback(msg, prediction, confidence, correct_label)
 
-    # Footer
-    st.markdown("---")
-    st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
-    st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
-    st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+        # Footer disclaimers
+        st.markdown("---")
+        st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
+        st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
+        st.markdown("⚠️ ScamSniperAI is not responsible for any losses or issues arising from following its advice.")
+        st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+
