@@ -54,6 +54,7 @@ def is_short_scam(msg):
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
 st.caption("Your local AI-powered scam message detector.")
+st.caption("Made for the elderly by the youth ")
 st.markdown("---")
 
 msg = st.text_area("📩 Paste the SMS or WhatsApp message below")
