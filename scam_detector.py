@@ -54,7 +54,7 @@ def is_short_scam(msg):
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
 st.caption("Your local AI-powered scam message detector.")
-st.caption("Made for the elderly by the youth ")
+st.caption("Made for the elderly by the youth")
 st.markdown("---")
 
 msg = st.text_area("📩 Paste the SMS or WhatsApp message below")
@@ -81,12 +81,34 @@ if st.button("🔍 Analyze"):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
-        # Display result
+        # 📊 RISK METER
+        st.subheader("📊 Scam Risk Meter")
+        risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
+
+        if prediction == 1:
+            if confidence >= 0.9:
+                st.markdown("### 🔴 HIGH RISK: Definitely a SCAM!")
+            elif confidence >= 0.7:
+                st.markdown("### 🟠 Likely a scam. Be cautious.")
+            else:
+                st.markdown("### ⚠️ Suspicious. Double-check manually.")
+        else:
+            if confidence >= 0.9:
+                st.markdown("### 🟢 Safe Message")
+            elif confidence >= 0.7:
+                st.markdown("### 🟡 Likely safe. Still verify.")
+            else:
+                st.markdown("### ⚠️ Unclear. Use caution.")
+
+        st.progress(int(risk_percent))
+
+        # 🧠 Final result block
+        st.markdown("---")
         if prediction == 1:
             st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
-            if 'msg_lower' in locals() and any(word in msg_lower for word in suspicious_keywords):
+            if 'msg_lower' in locals() and is_suspicious:
                 st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
 
         # Footer disclaimers
