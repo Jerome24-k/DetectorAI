@@ -25,8 +25,12 @@ suspicious_keywords = [
 known_safe_phrases = [
     "how to protect", "guide to avoid", "scam awareness",
     "educate about scams", "help elderly", "protect seniors from scams",
-    "tips to stay safe", "avoid getting scammed"
+    "tips to stay safe", "avoid getting scammed", "protecting elderly people from scams"
 ]
+
+def is_known_safe(msg):
+    msg_lower = msg.lower()
+    return any(phrase in msg_lower for phrase in known_safe_phrases)
 
 # Logic: bait-style scam detector
 def is_bait_scam(message):
@@ -46,11 +50,6 @@ def is_short_scam(msg):
     ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
-# Safe override checker
-def is_known_safe(msg):
-    msg_lower = msg.lower()
-    return any(phrase in msg_lower for phrase in known_safe_phrases)
-
 # Streamlit UI
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
@@ -63,12 +62,12 @@ if st.button("🔍 Analyze"):
     if not msg.strip():
         st.warning("Please enter a message.")
     else:
-        # Logic override: safe whitelist
+        # First, skip AI if message is known safe
         if is_known_safe(msg):
             prediction = 0
             confidence = 0.99
         else:
-            # Initial AI prediction
+            # AI prediction
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
 
@@ -77,7 +76,6 @@ if st.button("🔍 Analyze"):
             is_suspicious = any(word in msg_lower for word in suspicious_keywords)
             forced_scam = is_bait_scam(msg) or is_short_scam(msg)
 
-            # Override model prediction if scammy pattern found
             if forced_scam:
                 prediction = 1
                 confidence = max(confidence, 0.97)
@@ -87,7 +85,7 @@ if st.button("🔍 Analyze"):
             st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
-            if is_suspicious:
+            if 'msg_lower' in locals() and any(word in msg_lower for word in suspicious_keywords):
                 st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
 
         # Footer disclaimers
@@ -96,5 +94,3 @@ if st.button("🔍 Analyze"):
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
         st.markdown("⚠️ ScamSniperAI is not responsible for any losses or issues arising from following its advice.")
         st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
-
-
