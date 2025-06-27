@@ -21,7 +21,7 @@ suspicious_keywords = [
     "customs", "link", "refund", "kyc", "failed", "urgent"
 ]
 
-# Extra logic-based scam traps (bait detection)
+# Logic: bait-style scam detector
 def is_bait_scam(message):
     message_lower = message.lower()
     custom_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
@@ -29,6 +29,15 @@ def is_bait_scam(message):
     dollar_count = message.count("$") >= 2
     big_number = any(char.isdigit() and len(token) > 6 for token in message.split() for char in token)
     return word_spam or dollar_count or big_number
+
+# NEW: Short suspicious message detector
+def is_short_scam(msg):
+    msg_lower = msg.lower().strip()
+    short_red_flags = [
+        "scam", "money now", "prize", "send money", "rich", "$$$", "lottery",
+        "click", "verify", "account", "win", "otp", "bank", "reward"
+    ]
+    return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
 # Streamlit UI
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
@@ -49,7 +58,7 @@ if st.button("🔍 Analyze"):
         # Logic flags
         msg_lower = msg.lower()
         is_suspicious = any(word in msg_lower for word in suspicious_keywords)
-        forced_scam = is_bait_scam(msg)
+        forced_scam = is_bait_scam(msg) or is_short_scam(msg)
 
         # Override model prediction if scammy pattern found
         if forced_scam:
@@ -70,3 +79,4 @@ if st.button("🔍 Analyze"):
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
         st.markdown("⚠️ ScamSniperAI is not responsible for any losses or issues arising from following its advice.")
         st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+
