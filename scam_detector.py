@@ -1,3 +1,4 @@
+# [your existing imports unchanged]
 import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -7,6 +8,7 @@ import numpy as np
 import os
 from datetime import datetime
 
+# [Gradient + font styling, same]
 st.markdown("""
     <style>
     .stApp {
@@ -25,23 +27,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load custom dataset
+# Load dataset + build model
 df = pd.read_csv("scam_superdataset_10k.csv")
 X = df['message']
 y = df['label']
-
-# Build model pipeline
 model = make_pipeline(TfidfVectorizer(), MultinomialNB())
 model.fit(X, y)
 
-# Suspicious keyword triggers
+# Keywords
 suspicious_keywords = [
     "account", "bank", "verify", "payment", "transaction", "wallet",
     "login", "credentials", "password", "electricity", "bill", 
     "customs", "link", "refund", "kyc", "failed", "urgent"
 ]
 
-# Known-safe phrases to avoid false flags
 known_safe_phrases = [
     "how to protect", "guide to avoid", "scam awareness",
     "educate about scams", "help elderly", "protect seniors from scams",
@@ -49,10 +48,8 @@ known_safe_phrases = [
 ]
 
 def is_known_safe(msg):
-    msg_lower = msg.lower()
-    return any(phrase in msg_lower for phrase in known_safe_phrases)
+    return any(phrase in msg.lower() for phrase in known_safe_phrases)
 
-# Logic: bait-style scam detector
 def is_bait_scam(message):
     message_lower = message.lower()
     custom_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
@@ -61,7 +58,6 @@ def is_bait_scam(message):
     big_number = any(char.isdigit() and len(token) > 6 for token in message.split() for char in token)
     return word_spam or dollar_count or big_number
 
-# Short suspicious message detector
 def is_short_scam(msg):
     msg_lower = msg.lower().strip()
     short_red_flags = [
@@ -70,7 +66,28 @@ def is_short_scam(msg):
     ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
-# Feedback logger
+# ✅ NEW: Reason explanation builder
+def get_scam_reasons(msg):
+    msg = msg.lower()
+    reasons = []
+
+    if is_short_scam(msg):
+        reasons.append("Message is unusually short or contains common scam phrases like 'win' or 'account'.")
+    if is_bait_scam(msg):
+        reasons.append("Message uses typical scam bait words like 'money', '$', or 'prize'.")
+    if any(word in msg for word in suspicious_keywords):
+        reasons.append("Mentions sensitive terms like 'bank', 'verify', or 'login'.")
+    if "free" in msg:
+        reasons.append("Includes the word 'free', which is a frequent bait in scam messages.")
+    if "click" in msg:
+        reasons.append("Contains a call-to-action like 'click', which is common in phishing attempts.")
+    
+    if not reasons:
+        reasons.append("Flagged due to pattern similarity with known scam messages.")
+    
+    return reasons[:3]  # Limit to top 3 reasons
+
+# Logging feedback
 def log_feedback(message, prediction, confidence, correct_label):
     log_file = "feedback_log.csv"
     new_entry = {
@@ -85,7 +102,7 @@ def log_feedback(message, prediction, confidence, correct_label):
     else:
         pd.DataFrame([new_entry]).to_csv(log_file, index=False)
 
-# Streamlit UI
+# UI
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
 st.caption("Your local AI-powered scam message detector.")
@@ -98,16 +115,12 @@ if st.button("🔍 Analyze"):
     if not msg.strip():
         st.warning("Please enter a message.")
     else:
-        # First, skip AI if message is known safe
         if is_known_safe(msg):
             prediction = 0
             confidence = 0.99
         else:
-            # AI prediction
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
-
-            # Logic flags
             msg_lower = msg.lower()
             is_suspicious = any(word in msg_lower for word in suspicious_keywords)
             forced_scam = is_bait_scam(msg) or is_short_scam(msg)
@@ -116,7 +129,7 @@ if st.button("🔍 Analyze"):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
-        # 📊 RISK METER
+        # 📊 Risk meter
         st.subheader("📊 Scam Risk Meter")
         risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
 
@@ -134,19 +147,23 @@ if st.button("🔍 Analyze"):
                 st.markdown("### 🟡 Likely safe. Still verify.")
             else:
                 st.markdown("### ⚠️ Unclear. Use caution.")
-
+        
         st.progress(int(risk_percent))
 
-        # 🧠 Final result block
+        # 🧠 Final result
         st.markdown("---")
         if prediction == 1:
             st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
+            # ✅ NEW: Explanation block
+            st.markdown("#### 💬 Why flagged as scam?")
+            for reason in get_scam_reasons(msg):
+                st.markdown(f"- {reason}")
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
             if 'msg_lower' in locals() and is_suspicious:
-                st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
+                st.warning("⚠️ BUT this message mentions sensitive words. Stay cautious.")
 
-        # 📥 Feedback Buttons
+        # Feedback
         st.markdown("#### 🤖 Was this prediction correct?")
         col1, col2 = st.columns(2)
         with col1:
@@ -158,7 +175,7 @@ if st.button("🔍 Analyze"):
                 correct_label = 0 if prediction == 1 else 1
                 log_feedback(msg, prediction, confidence, correct_label)
 
-        # Footer disclaimers
+        # Footer
         st.markdown("---")
         st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
