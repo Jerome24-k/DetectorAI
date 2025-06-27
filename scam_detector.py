@@ -2,13 +2,13 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
-from datasets import load_dataset
+import pandas as pd
 import numpy as np
 
-# Load dataset
-dataset = load_dataset("sms_spam")
-X = dataset['train']['sms']
-y = dataset['train']['label']
+# Load custom dataset
+df = pd.read_csv("scam_superdataset_10k.csv")
+X = df['message']
+y = df['label']
 
 # Build model pipeline
 model = make_pipeline(TfidfVectorizer(), MultinomialNB())
