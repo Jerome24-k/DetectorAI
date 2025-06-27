@@ -1,4 +1,3 @@
-# [your existing imports unchanged]
 import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -8,7 +7,7 @@ import numpy as np
 import os
 from datetime import datetime
 
-# [Gradient + font styling, same]
+# --- UI Customization ---
 st.markdown("""
     <style>
     .stApp {
@@ -27,14 +26,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load dataset + build model
+# --- Load Dataset & Train Model ---
 df = pd.read_csv("scam_superdataset_10k.csv")
 X = df['message']
 y = df['label']
+
 model = make_pipeline(TfidfVectorizer(), MultinomialNB())
 model.fit(X, y)
 
-# Keywords
+# --- Keyword Logic ---
 suspicious_keywords = [
     "account", "bank", "verify", "payment", "transaction", "wallet",
     "login", "credentials", "password", "electricity", "bill", 
@@ -48,14 +48,24 @@ known_safe_phrases = [
 ]
 
 def is_known_safe(msg):
-    return any(phrase in msg.lower() for phrase in known_safe_phrases)
+    msg_lower = msg.lower()
+    return any(phrase in msg_lower for phrase in known_safe_phrases)
 
+# --- Smarter Bait Detection ---
 def is_bait_scam(message):
     message_lower = message.lower()
-    custom_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
+    safe_free_phrases = [
+        "free education", "free books", "free seminar", "free event", 
+        "free vaccine", "free course", "free guide", "free workshop"
+    ]
+    if any(phrase in message_lower for phrase in safe_free_phrases):
+        return False
+
+    custom_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich", "free"]
     word_spam = sum(word in message_lower for word in custom_words) >= 3
-    dollar_count = message.count("$") >= 2
-    big_number = any(char.isdigit() and len(token) > 6 for token in message.split() for char in token)
+    dollar_count = message_lower.count("$") >= 2
+    big_number = any(char.isdigit() and len(token) > 6 for token in message_lower.split() for char in token)
+
     return word_spam or dollar_count or big_number
 
 def is_short_scam(msg):
@@ -66,28 +76,7 @@ def is_short_scam(msg):
     ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
-# ✅ NEW: Reason explanation builder
-def get_scam_reasons(msg):
-    msg = msg.lower()
-    reasons = []
-
-    if is_short_scam(msg):
-        reasons.append("Message is unusually short or contains common scam phrases like 'win' or 'account'.")
-    if is_bait_scam(msg):
-        reasons.append("Message uses typical scam bait words like 'money', '$', or 'prize'.")
-    if any(word in msg for word in suspicious_keywords):
-        reasons.append("Mentions sensitive terms like 'bank', 'verify', or 'login'.")
-    if "free" in msg:
-        reasons.append("Includes the word 'free', which is a frequent bait in scam messages.")
-    if "click" in msg:
-        reasons.append("Contains a call-to-action like 'click', which is common in phishing attempts.")
-    
-    if not reasons:
-        reasons.append("Flagged due to pattern similarity with known scam messages.")
-    
-    return reasons[:3]  # Limit to top 3 reasons
-
-# Logging feedback
+# --- Feedback Logging ---
 def log_feedback(message, prediction, confidence, correct_label):
     log_file = "feedback_log.csv"
     new_entry = {
@@ -102,7 +91,7 @@ def log_feedback(message, prediction, confidence, correct_label):
     else:
         pd.DataFrame([new_entry]).to_csv(log_file, index=False)
 
-# UI
+# --- Streamlit UI ---
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
 st.title("📱 ScamSniperAI")
 st.caption("Your local AI-powered scam message detector.")
@@ -121,6 +110,7 @@ if st.button("🔍 Analyze"):
         else:
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
+
             msg_lower = msg.lower()
             is_suspicious = any(word in msg_lower for word in suspicious_keywords)
             forced_scam = is_bait_scam(msg) or is_short_scam(msg)
@@ -129,7 +119,7 @@ if st.button("🔍 Analyze"):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
-        # 📊 Risk meter
+        # --- Scam Risk Meter ---
         st.subheader("📊 Scam Risk Meter")
         risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
 
@@ -147,23 +137,21 @@ if st.button("🔍 Analyze"):
                 st.markdown("### 🟡 Likely safe. Still verify.")
             else:
                 st.markdown("### ⚠️ Unclear. Use caution.")
-        
+
         st.progress(int(risk_percent))
 
-        # 🧠 Final result
+        # --- Result Output + Reasoning ---
         st.markdown("---")
         if prediction == 1:
             st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
-            # ✅ NEW: Explanation block
-            st.markdown("#### 💬 Why flagged as scam?")
-            for reason in get_scam_reasons(msg):
-                st.markdown(f"- {reason}")
+            st.markdown("This message shows multiple red flags that are commonly seen in scam messages, like the use of financial words, vague language, or promises of rewards. Our model and logic-based checks identified patterns linked to phishing, fraud, or bait attempts. Please be extremely careful before responding to such messages.")
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)")
+            st.markdown("This message does not contain strong indicators of scam activity based on our machine learning model. It doesn't include suspicious keywords or bait-style patterns. Still, it's always smart to stay alert and verify unknown sources.")
             if 'msg_lower' in locals() and is_suspicious:
-                st.warning("⚠️ BUT this message mentions sensitive words. Stay cautious.")
+                st.warning("⚠️ However, this message mentions sensitive terms like account, payment, or login. Even if it seems safe, contact your bank or service provider directly to confirm.")
 
-        # Feedback
+        # --- Feedback System ---
         st.markdown("#### 🤖 Was this prediction correct?")
         col1, col2 = st.columns(2)
         with col1:
@@ -175,7 +163,7 @@ if st.button("🔍 Analyze"):
                 correct_label = 0 if prediction == 1 else 1
                 log_feedback(msg, prediction, confidence, correct_label)
 
-        # Footer
+        # --- Footer ---
         st.markdown("---")
         st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
