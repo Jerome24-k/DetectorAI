@@ -7,94 +7,75 @@ import numpy as np
 import os
 from datetime import datetime
 
-# 🌈 Modern background + font
+# UI Styling
 st.markdown("""
     <style>
     .stApp {
         background: linear-gradient(135deg, #0f2027, #2c5364, #00c9a7);
         background-attachment: fixed;
-        color: #ffffff;
     }
-    @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
     html, body, [class*="css"]  {
         font-family: 'Poppins', sans-serif;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 📂 Load custom dataset
+# Load dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
 X = df['message']
 y = df['label']
+
+# Build model pipeline
 model = make_pipeline(TfidfVectorizer(), MultinomialNB())
 model.fit(X, y)
 
-# 🚨 Keyword logic
-suspicious_keywords = [
-    "account", "bank", "verify", "payment", "transaction", "wallet", "login",
-    "credentials", "password", "electricity", "bill", "customs", "link", "refund", "kyc", "failed", "urgent"
-]
-safe_free_contexts = [
-    "free books", "free food", "free course", "free resources", "free seminar", "free webinar",
-    "free education", "free library", "free safety guide"
-]
-known_safe_phrases = [
-    "how to protect", "guide to avoid", "scam awareness", "educate about scams", "help elderly",
-    "tips to stay safe", "avoid getting scammed", "protecting elderly people from scams"
-]
+# Keyword lists
+suspicious_keywords = ["account", "bank", "verify", "payment", "transaction", "wallet",
+    "login", "credentials", "password", "electricity", "bill", 
+    "customs", "link", "refund", "kyc", "failed", "urgent"]
 
-# ⚙️ Logic helpers
+bait_words = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
+short_red_flags = ["scam", "money now", "prize", "send money", "rich", "$$$", "lottery",
+    "click", "verify", "account", "win", "otp", "bank", "reward"]
+
+known_safe_phrases = ["how to protect", "guide to avoid", "scam awareness",
+    "educate about scams", "help elderly", "protect seniors from scams",
+    "tips to stay safe", "avoid getting scammed", "protecting elderly people from scams"]
+
+# Logic functions
 def is_known_safe(msg):
     msg_lower = msg.lower()
     return any(phrase in msg_lower for phrase in known_safe_phrases)
 
-def is_safe_free_context(msg):
-    msg_lower = msg.lower()
-    return "free" in msg_lower and any(phrase in msg_lower for phrase in safe_free_contexts)
-
 def is_bait_scam(msg):
     msg_lower = msg.lower()
-    bait = ["send", "receive", "$", "win", "money", "prize", "reward", "rich"]
-    word_spam = sum(word in msg_lower for word in bait) >= 3
+    word_spam = sum(word in msg_lower for word in bait_words) >= 3
     dollar_count = msg.count("$") >= 2
     big_number = any(char.isdigit() and len(token) > 6 for token in msg.split() for char in token)
     return word_spam or dollar_count or big_number
 
 def is_short_scam(msg):
     msg_lower = msg.lower().strip()
-    short_red_flags = [
-        "scam", "money now", "prize", "send money", "rich", "$$$", "lottery",
-        "click", "verify", "account", "win", "otp", "bank", "reward"
-    ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
-def explain_reason(msg, prediction, logic_flags):
-    msg = msg.lower()
+# Explanation generator
+def generate_explanation(msg):
+    msg_lower = msg.lower()
     reasons = []
+    if any(k in msg_lower for k in suspicious_keywords):
+        reasons.append("The message contains keywords like 'account', 'verify', or 'refund', which are commonly used in phishing and scam messages.")
+    if is_bait_scam(msg):
+        reasons.append("It includes words like 'win', 'prize', or '$', and may be trying to bait you with fake rewards or money scams.")
+    if is_short_scam(msg):
+        reasons.append("The message is short and vague with suspicious language like 'money now' or 'click', which is a common trait of spam or scams.")
+    if not reasons:
+        reasons.append("The language and tone of the message matched patterns found in known scam messages in the training data.")
+    return " ".join(reasons[:2])  # Limit to 2 explanations
 
-    if prediction == 1:
-        if is_bait_scam(msg):
-            reasons.append("The message contains multiple signs of a bait scam, like money promises or excessive dollar symbols.")
-        if is_short_scam(msg):
-            reasons.append("Very short messages with high-risk words like 'scam', 'prize', or 'win' are often fraudulent.")
-        if "free" in msg and not is_safe_free_context(msg):
-            reasons.append("The word 'free' was found, but it's not in a context typically associated with safe resources.")
-        if any(k in msg for k in suspicious_keywords):
-            matched = [k for k in suspicious_keywords if k in msg]
-            reasons.append(f"Suspicious terms like {', '.join(matched)} were found in the message.")
-        if not reasons:
-            reasons.append("The message content appears to match patterns often associated with scams.")
-    else:
-        reasons.append("No strong scam patterns were detected, and the content appears informational or conversational.")
-        if any(k in msg for k in suspicious_keywords):
-            reasons.append("Still, sensitive words like 'account' or 'payment' were found, so caution is advised.")
-
-    return " ".join(reasons[:2])
-
-# 🧠 Feedback logger
+# Feedback logger
 def log_feedback(message, prediction, confidence, correct_label):
     log_file = "feedback_log.csv"
-    entry = {
+    new_entry = {
         "timestamp": datetime.now().isoformat(),
         "message": message,
         "prediction": prediction,
@@ -102,79 +83,80 @@ def log_feedback(message, prediction, confidence, correct_label):
         "correct_label": correct_label
     }
     if os.path.exists(log_file):
-        pd.DataFrame([entry]).to_csv(log_file, mode='a', header=False, index=False)
+        pd.DataFrame([new_entry]).to_csv(log_file, mode='a', header=False, index=False)
     else:
-        pd.DataFrame([entry]).to_csv(log_file, index=False)
+        pd.DataFrame([new_entry]).to_csv(log_file, index=False)
 
-# 🚀 Streamlit UI
-st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
-st.title("📱 ScamSniperAI")
+# Streamlit UI
+st.set_page_config(page_title="ScamSniperAI", page_icon="\ud83d\udcf1")
+st.title("\ud83d\udcf1 ScamSniperAI")
 st.caption("Your local AI-powered scam message detector.")
 st.caption("Made for the elderly by the youth")
 st.markdown("---")
 
-msg = st.text_area("📩 Paste the SMS or WhatsApp message below")
+msg = st.text_area("\ud83d\udce9 Paste the SMS or WhatsApp message below")
 
-if st.button("🔍 Analyze"):
+if st.button("\ud83d\udd0d Analyze"):
     if not msg.strip():
         st.warning("Please enter a message.")
     else:
-        # 🧠 Model + logic
         if is_known_safe(msg):
-            prediction, confidence = 0, 0.99
+            prediction = 0
+            confidence = 0.99
         else:
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
-
             if is_bait_scam(msg) or is_short_scam(msg):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
-        # 📊 Scam Meter
-        st.subheader("📊 Scam Risk Meter")
+        # Scam Risk Meter
+        st.subheader("\ud83d\udcca Scam Risk Meter")
         risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
-
         if prediction == 1:
             if confidence >= 0.9:
-                st.markdown("### 🔴 HIGH RISK: Definitely a SCAM!")
+                st.markdown("### \ud83d\udd34 HIGH RISK: Definitely a SCAM!")
             elif confidence >= 0.7:
-                st.markdown("### 🟠 Likely a scam. Be cautious.")
+                st.markdown("### \ud83d\udea0 Likely a scam. Be cautious.")
             else:
-                st.markdown("### ⚠️ Suspicious. Double-check manually.")
+                st.markdown("### \u26a0\ufe0f Suspicious. Double-check manually.")
         else:
             if confidence >= 0.9:
-                st.markdown("### 🟢 Safe Message")
+                st.markdown("### \ud83d\udfe2 Safe Message")
             elif confidence >= 0.7:
-                st.markdown("### 🟡 Likely safe. Still verify.")
+                st.markdown("### \ud83d\udfe1 Likely safe. Still verify.")
             else:
-                st.markdown("### ⚠️ Unclear. Use caution.")
+                st.markdown("### \u26a0\ufe0f Unclear. Use caution.")
 
         st.progress(int(risk_percent))
 
-        # 🔎 Main result
+        # Final result
         st.markdown("---")
-        reason = explain_reason(msg, prediction, logic_flags=True)
         if prediction == 1:
-            st.error(f"⚠️ This message looks like a SCAM! ({confidence*100:.1f}% confidence)\n\n💬 **Why?** {reason}")
+            st.error(f"\u26a0\ufe0f This message looks like a SCAM! ({confidence*100:.1f}% confidence)")
+            explanation = generate_explanation(msg)
+            st.markdown(f"#### \ud83e\uddd0 Why?")
+            st.info(explanation)
         else:
-            st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)\n\n💬 **Why?** {reason}")
+            st.success(f"\u2705 This message looks SAFE. ({confidence*100:.1f}% confidence)")
 
-        # 👍👎 Feedback
-        st.markdown("#### 🤖 Was this prediction correct?")
+        # Feedback Buttons
+        st.markdown("#### \ud83e\udd16 Was this prediction correct?")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("👍 Yes"):
+            if st.button("\ud83d\udc4d Yes"):
                 st.success("Thanks for confirming!")
         with col2:
-            if st.button("👎 No"):
+            if st.button("\ud83d\udc4e No"):
                 st.warning("Logged! We'll learn from this.")
                 correct_label = 0 if prediction == 1 else 1
                 log_feedback(msg, prediction, confidence, correct_label)
 
-        # 📌 Footer
+        # Footer
         st.markdown("---")
-        st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
-        st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
-        st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+        st.markdown("\u26a0\ufe0f ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
+        st.markdown("\ud83d\udd0d ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
+        st.markdown("\u26a0\ufe0f ScamSniperAI is not responsible for any losses or issues arising from following its advice.")
+        st.markdown("\ud83d\udee1\ufe0f *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
 
 
