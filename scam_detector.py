@@ -48,11 +48,11 @@ def is_short_scam(msg):
 # === Page Config ===
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱", layout="centered")
 
-# === Sleek UI Styling ===
+# === Sleek Custom CSS with Functional Bar ===
 st.markdown("""
     <style>
-        html, body, [class*="css"]  {
-            background: linear-gradient(135deg, #f0f4f8 0%, #e8f0ff 100%) !important;
+        html, body, [class*="css"] {
+            background: linear-gradient(to right, #e0f7fa, #f1f8e9);
             color: #1c1c1e;
             font-family: 'Segoe UI', sans-serif;
         }
@@ -66,19 +66,25 @@ st.markdown("""
             border-radius: 1.5rem;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
         }
-        .risk-meter {
-            height: 18px;
-            background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+        .risk-container {
+            height: 20px;
+            width: 100%;
+            background: #ddd;
             border-radius: 10px;
             margin-top: 10px;
+            overflow: hidden;
         }
-        .stButton button {
+        .risk-fill {
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+            transition: width 0.5s ease-in-out;
+        }
+        .stButton > button {
             border-radius: 10px;
             font-weight: bold;
             background: linear-gradient(90deg, #0072ff, #00c6ff);
             color: white;
-            padding: 0.5rem 1rem;
-            border: none;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -103,6 +109,8 @@ if st.button("🔍 Analyze Message"):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
+        scam_score = confidence * 100 if prediction == 1 else (1 - confidence) * 100
+
         # === Risk Meter ===
         st.markdown("<div class='result-card'>", unsafe_allow_html=True)
 
@@ -113,7 +121,13 @@ if st.button("🔍 Analyze Message"):
             if any(word in msg.lower() for word in suspicious_keywords):
                 st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check with your bank or provider.")
 
-        st.markdown("<div class='risk-meter'></div>", unsafe_allow_html=True)
+        # Dynamic bar width
+        st.markdown(f"""
+            <div class='risk-container'>
+                <div class='risk-fill' style='width: {scam_score}%;'></div>
+            </div>
+        """, unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
         # === Feedback Buttons ===
