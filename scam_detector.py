@@ -10,11 +10,12 @@ from datetime import datetime
 st.markdown("""
     <style>
     .stApp {
-        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        background: linear-gradient(135deg, #0f2027, #2c5364, #00c9a7);
         background-attachment: fixed;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 # Load custom dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
