@@ -4,6 +4,8 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
 import pandas as pd
 import numpy as np
+import os
+from datetime import datetime
 
 # Load custom dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
@@ -49,6 +51,21 @@ def is_short_scam(msg):
         "click", "verify", "account", "win", "otp", "bank", "reward"
     ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
+
+# Feedback logger
+def log_feedback(message, prediction, confidence, correct_label):
+    log_file = "feedback_log.csv"
+    new_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "message": message,
+        "prediction": prediction,
+        "confidence": round(confidence, 4),
+        "correct_label": correct_label
+    }
+    if os.path.exists(log_file):
+        pd.DataFrame([new_entry]).to_csv(log_file, mode='a', header=False, index=False)
+    else:
+        pd.DataFrame([new_entry]).to_csv(log_file, index=False)
 
 # Streamlit UI
 st.set_page_config(page_title="ScamSniperAI", page_icon="📱")
@@ -111,9 +128,22 @@ if st.button("🔍 Analyze"):
             if 'msg_lower' in locals() and is_suspicious:
                 st.warning("⚠️ BUT this message mentions sensitive words like accounts, payments, or verification. Please double-check directly with your bank or service provider before responding.")
 
+        # 📥 Feedback Buttons
+        st.markdown("#### 🤖 Was this prediction correct?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("👍 Yes"):
+                st.success("Thanks for confirming!")
+        with col2:
+            if st.button("👎 No"):
+                st.warning("Logged! We'll learn from this.")
+                correct_label = 0 if prediction == 1 else 1
+                log_feedback(msg, prediction, confidence, correct_label)
+
         # Footer disclaimers
         st.markdown("---")
         st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
         st.markdown("⚠️ ScamSniperAI is not responsible for any losses or issues arising from following its advice.")
         st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+
