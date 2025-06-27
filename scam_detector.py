@@ -68,6 +68,17 @@ def is_short_scam(msg):
     ]
     return len(msg_lower) <= 5 or any(flag in msg_lower for flag in short_red_flags)
 
+def is_scammy_free(msg):
+    msg_lower = msg.lower()
+    free_count = msg_lower.count("free")
+    trigger_words = ["click", "win", "now", "limited", "offer", "guarantee", "urgent", "cash", "gift"]
+    triggers = sum(word in msg_lower for word in trigger_words)
+    if free_count >= 2 and triggers >= 1:
+        return True
+    if "free" in msg_lower and triggers >= 2:
+        return True
+    return False
+
 def explain_reason(msg, prediction, logic_flags):
     msg = msg.lower()
     reasons = []
@@ -77,8 +88,8 @@ def explain_reason(msg, prediction, logic_flags):
             reasons.append("The message contains multiple signs of a bait scam, like money promises or excessive dollar symbols.")
         if is_short_scam(msg):
             reasons.append("Very short messages with high-risk words like 'scam', 'prize', or 'win' are often fraudulent.")
-        if "free" in msg and not is_safe_free_context(msg):
-            reasons.append("The word 'free' was found, but it's not in a context typically associated with safe resources.")
+        if "free" in msg and not is_safe_free_context(msg) and is_scammy_free(msg):
+            reasons.append("The word 'free' was found in a context with suspicious trigger words like 'click', 'urgent', or 'gift'.")
         if any(k in msg for k in suspicious_keywords):
             matched = [k for k in suspicious_keywords if k in msg]
             reasons.append(f"Suspicious terms like {', '.join(matched)} were found in the message.")
@@ -89,7 +100,7 @@ def explain_reason(msg, prediction, logic_flags):
         if any(k in msg for k in suspicious_keywords):
             reasons.append("Still, sensitive words like 'account' or 'payment' were found, so caution is advised.")
 
-    return " ".join(reasons[:2])
+    return " ".join(reasons[:3])
 
 # 🧠 Feedback logger
 def log_feedback(message, prediction, confidence, correct_label):
@@ -119,18 +130,16 @@ if st.button("🔍 Analyze"):
     if not msg.strip():
         st.warning("Please enter a message.")
     else:
-        # 🧠 Model + logic
         if is_known_safe(msg):
             prediction, confidence = 0, 0.99
         else:
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
 
-            if is_bait_scam(msg) or is_short_scam(msg):
+            if is_bait_scam(msg) or is_short_scam(msg) or ("free" in msg.lower() and not is_safe_free_context(msg) and is_scammy_free(msg)):
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
-        # 📊 Scam Meter
         st.subheader("📊 Scam Risk Meter")
         risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
 
@@ -151,7 +160,6 @@ if st.button("🔍 Analyze"):
 
         st.progress(int(risk_percent))
 
-        # 🔎 Main result
         st.markdown("---")
         reason = explain_reason(msg, prediction, logic_flags=True)
         if prediction == 1:
@@ -159,7 +167,6 @@ if st.button("🔍 Analyze"):
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)\n\n💬 **Why?** {reason}")
 
-        # 👍👎 Feedback
         st.markdown("#### 🤖 Was this prediction correct?")
         col1, col2 = st.columns(2)
         with col1:
@@ -171,9 +178,9 @@ if st.button("🔍 Analyze"):
                 correct_label = 0 if prediction == 1 else 1
                 log_feedback(msg, prediction, confidence, correct_label)
 
-        # 📌 Footer
         st.markdown("---")
         st.markdown("⚠️ ALWAYS VERIFY SUSPICIOUS MESSAGES DIRECTLY WITH YOUR SERVICE PROVIDER.")
         st.markdown("🔍 ScamSniperAI IS NOT PROFESSIONAL ADVICE. ALWAYS SEEK SECOND OPINIONS.")
         st.markdown("🛡️ *ScamSniperAI uses AI + keyword suspicion logic to help detect risky messages.*")
+
 
