@@ -7,6 +7,15 @@ import numpy as np
 import os
 from datetime import datetime
 
+st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        background-attachment: fixed;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Load custom dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
 X = df['message']
