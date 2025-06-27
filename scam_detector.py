@@ -16,6 +16,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
+    html, body, [class*="css"]  {
+        font-family: 'Poppins', sans-serif;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Load custom dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
