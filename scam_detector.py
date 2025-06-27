@@ -6,6 +6,13 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import datetime
+st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(135deg, #f4f6f8, #e0f7fa);
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Load custom dataset
 df = pd.read_csv("scam_superdataset_10k.csv")
