@@ -136,10 +136,21 @@ if st.button("🔍 Analyze"):
             prediction = model.predict([msg])[0]
             confidence = model.predict_proba([msg])[0][prediction]
 
-            if is_bait_scam(msg) or is_short_scam(msg) or ("free" in msg.lower() and not is_safe_free_context(msg) and is_scammy_free(msg)):
+            bait_flag = is_bait_scam(msg)
+            short_flag = is_short_scam(msg)
+            scammy_free_flag = "free" in msg.lower() and not is_safe_free_context(msg) and is_scammy_free(msg)
+            safe_free_flag = "free" in msg.lower() and is_safe_free_context(msg)
+
+            if bait_flag or short_flag or scammy_free_flag:
                 prediction = 1
                 confidence = max(confidence, 0.97)
 
+            # ✅ Override if "free" is in a safe educational/resource context
+            if safe_free_flag and not bait_flag and not short_flag:
+                prediction = 0
+                confidence = 0.95
+
+        # 📊 Scam Risk Meter
         st.subheader("📊 Scam Risk Meter")
         risk_percent = (1 - confidence) * 100 if prediction == 1 else (100 - confidence * 100)
 
@@ -160,6 +171,7 @@ if st.button("🔍 Analyze"):
 
         st.progress(int(risk_percent))
 
+        # 🔎 Main result
         st.markdown("---")
         reason = explain_reason(msg, prediction, logic_flags=True)
         if prediction == 1:
@@ -167,6 +179,7 @@ if st.button("🔍 Analyze"):
         else:
             st.success(f"✅ This message looks SAFE. ({confidence*100:.1f}% confidence)\n\n💬 **Why?** {reason}")
 
+        # 👍👎 Feedback
         st.markdown("#### 🤖 Was this prediction correct?")
         col1, col2 = st.columns(2)
         with col1:
